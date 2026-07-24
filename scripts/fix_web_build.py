@@ -108,12 +108,31 @@ def fix_index_html() -> None:
     start = text.index(marker) + len(marker)
     end = text.index('"', start)
     current_url = text[start:end]
-    if current_url == "/pyodide/pyodide.mjs":
+    # A leading-slash path ("/pyodide/pyodide.mjs") only resolves correctly
+    # when the site is served from the domain root; GitHub Pages project
+    # sites are served under a subpath (e.g. /wagemetar/), which would break
+    # it. python-worker.js runs as a module worker, so a relative specifier
+    # here resolves against *its own* script URL (which already lives under
+    # the same base path) — "./pyodide/pyodide.mjs" works at any base path.
+    # (A bare "pyodide/pyodide.mjs", with no "./" prefix, is invalid too:
+    # ES module resolution treats it as a bare specifier, not a relative
+    # URL, and fails with "Failed to resolve module specifier".)
+    local_url = "./pyodide/pyodide.mjs"
+    if current_url == local_url:
         print("index.html: pyodideUrl already local, skipping")
         return
-    text = text[:start] + "/pyodide/pyodide.mjs" + text[end:]
+    text = text[:start] + local_url + text[end:]
+
+    # Same class of bug: canvasKitBaseUrl is emitted as "/canvaskit/" (root-
+    # absolute), which ignores `<base href>` and breaks under a GitHub Pages
+    # project-site subpath (e.g. /wagemetar/). Unlike pyodideUrl this one is
+    # consumed via fetch()/URL, not a bare `import()` specifier, so a plain
+    # relative path (no "./" needed) resolves correctly against the page's
+    # base href.
+    text = text.replace('canvasKitBaseUrl: "/canvaskit/"', 'canvasKitBaseUrl: "canvaskit/"')
+
     index_path.write_text(text, encoding="utf-8")
-    print(f"index.html: pyodideUrl {current_url!r} -> '/pyodide/pyodide.mjs'")
+    print(f"index.html: pyodideUrl {current_url!r} -> {local_url!r}; canvasKitBaseUrl -> relative")
 
 
 def fix_pyodide_packages() -> None:

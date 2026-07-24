@@ -33,6 +33,7 @@ storage/
 # IDE
 .idea/
 .vscode/
+.claude/
 
 # macOS
 .DS_Store
