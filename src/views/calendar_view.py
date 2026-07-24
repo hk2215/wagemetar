@@ -21,6 +21,7 @@ import flet as ft
 import theme
 from db import Database
 from formatting import format_yen
+from models import WorkSession
 from views.shift_import_view import build_shift_import_card
 
 WEEKDAY_HEADER = ["月", "火", "水", "木", "金", "土", "日"]
@@ -79,6 +80,7 @@ def build_calendar_view(page: ft.Page, db: Database) -> tuple[ft.Control, Callab
     selected_day_panel = ft.Column(spacing=4)
     monthly_total_value = ft.Text("", size=26, weight=ft.FontWeight.W_800, color=theme.TEXT_PRIMARY)
     workplace_breakdown_col = ft.Column(spacing=10)
+    sessions_list_col = ft.Column(spacing=6)
 
     yearly_total_value = ft.Text("", size=22, weight=ft.FontWeight.W_800, color=theme.TEXT_PRIMARY)
     yearly_bars_col = ft.Column(spacing=8)
@@ -147,6 +149,60 @@ def build_calendar_view(page: ft.Page, db: Database) -> tuple[ft.Control, Callab
                     ]
                 )
             )
+
+    def _session_row(s: WorkSession) -> ft.Row:
+        wp_name = workplace_name(s.workplace_id)
+        time_range = f"{s.start_ts.strftime('%H:%M')}-{s.end_ts.strftime('%H:%M') if s.end_ts else '--'}"
+        return ft.Row(
+            [
+                ft.Text(f"{s.start_ts.month}/{s.start_ts.day}", size=12, color=theme.TEXT_SECONDARY, width=32),
+                ft.Text(wp_name, size=12, color=theme.TEXT_PRIMARY, expand=True),
+                ft.Text(time_range, size=12, color=theme.TEXT_SECONDARY),
+                ft.Text(format_yen(s.gross_amount), size=12, weight=ft.FontWeight.W_600, color=theme.PRIMARY),
+                ft.IconButton(
+                    icon=ft.Icons.DELETE_OUTLINE,
+                    icon_size=16,
+                    icon_color=theme.TEXT_SECONDARY,
+                    tooltip="削除",
+                    on_click=(lambda e, sess=s: on_delete_session(sess)),
+                ),
+            ],
+            spacing=4,
+        )
+
+    def render_sessions_list() -> None:
+        start, end = _month_bounds(state["year"], state["month"])
+        sessions = db.list_sessions(start, end)
+        sessions_list_col.controls.clear()
+        if not sessions:
+            sessions_list_col.controls.append(theme.caption_text("記録がありません"))
+            return
+        for s in sorted(sessions, key=lambda x: x.start_ts, reverse=True):
+            sessions_list_col.controls.append(_session_row(s))
+
+    def show_undo_snack(session: WorkSession) -> None:
+        def on_undo(e) -> None:
+            db.insert_session(session)
+            render_heatmap()
+            render_yearly()
+            page.update()
+
+        snack = ft.SnackBar(
+            content=ft.Text("出勤記録を削除しました", color="#FFFFFF"),
+            open=True,
+            bgcolor=theme.DANGER,
+            action="元に戻す",
+            on_action=on_undo,
+            shape=ft.RoundedRectangleBorder(radius=theme.RADIUS_SM),
+        )
+        page.overlay.append(snack)
+
+    def on_delete_session(session: WorkSession) -> None:
+        db.delete_session(session.id)
+        render_heatmap()
+        render_yearly()
+        show_undo_snack(session)
+        page.update()
 
     def render_heatmap() -> None:
         year, month = state["year"], state["month"]
@@ -235,6 +291,7 @@ def build_calendar_view(page: ft.Page, db: Database) -> tuple[ft.Control, Callab
             workplace_breakdown_col.controls.append(theme.caption_text("記録がありません"))
 
         render_selected_day()
+        render_sessions_list()
         render_goal(monthly_total)
 
     def render_yearly() -> None:
@@ -413,6 +470,9 @@ def build_calendar_view(page: ft.Page, db: Database) -> tuple[ft.Control, Callab
                 ft.Divider(height=1, color=theme.BORDER),
                 theme.caption_text("バイト先別内訳"),
                 workplace_breakdown_col,
+                ft.Divider(height=1, color=theme.BORDER),
+                theme.caption_text("出勤記録"),
+                sessions_list_col,
                 ft.OutlinedButton(
                     content=ft.Row(
                         [ft.Icon(ft.Icons.FILE_DOWNLOAD_OUTLINED, size=16), ft.Text("CSV出力(今月分)", weight=ft.FontWeight.W_600)],

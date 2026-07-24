@@ -25,7 +25,7 @@ import flet as ft
 
 import theme
 from db import Database
-from formatting import format_hms, format_yen
+from formatting import format_hms, format_rate_triplet, format_yen
 from models import WorkSession
 from wage import earnings_so_far, effective_rate, finalize_amount, is_currently_paused
 
@@ -64,6 +64,7 @@ def build_timer_view(page: ft.Page, db: Database) -> tuple[ft.Control, Callable[
         alignment=ft.MainAxisAlignment.CENTER,
     )
     status_badge = theme.badge("待機中", theme.TEXT_SECONDARY, theme.NEUTRAL_SOFT)
+    rate_text = theme.caption_text("")
     transport_switch = ft.Switch(value=True, active_color=theme.PRIMARY)
 
     start_button = ft.FilledButton(
@@ -149,6 +150,7 @@ def build_timer_view(page: ft.Page, db: Database) -> tuple[ft.Control, Callable[
         status_badge.content.color = theme.TEXT_SECONDARY
         amount_text.value = "¥0"
         elapsed_text.controls[1].value = "00:00:00"
+        rate_text.value = ""
 
     def set_running_ui() -> None:
         start_button.disabled = True
@@ -167,13 +169,16 @@ def build_timer_view(page: ft.Page, db: Database) -> tuple[ft.Control, Callable[
             amount_text.value = format_yen(amount)
             elapsed_text.controls[1].value = format_hms(elapsed)
 
+            rate_now = effective_rate(wp, wp.rules, now)
+            hourly, per_min, per_sec = format_rate_triplet(rate_now)
+            rate_text.value = f"時給 {hourly} ・ 分給 {per_min} ・ 秒給 {per_sec}"
+
             paused = is_currently_paused(session)
             if paused:
                 status_badge.content.value = "一時停止中"
                 status_badge.bgcolor = theme.NEUTRAL_SOFT
                 status_badge.content.color = theme.TEXT_SECONDARY
             else:
-                rate_now = effective_rate(wp, wp.rules, now)
                 if rate_now > wp.base_wage:
                     status_badge.content.value = f"⚡ 加算中 ・ ¥{rate_now:.0f}/時"
                     status_badge.bgcolor = theme.WARNING_SOFT
@@ -274,6 +279,7 @@ def build_timer_view(page: ft.Page, db: Database) -> tuple[ft.Control, Callable[
                 status_badge,
                 amount_text,
                 elapsed_text,
+                rate_text,
             ],
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             spacing=10,

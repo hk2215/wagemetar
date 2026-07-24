@@ -71,6 +71,19 @@ def test_timer_view_builds(db_with_sample_data):
     refresh()
 
 
+def test_timer_view_has_rate_text_in_earnings_card(db_with_sample_data):
+    """回帰テスト: 秒給/分給/時給表示用のrate_textがearnings_card内に追加されていること。"""
+    from views.timer_view import build_timer_view
+
+    page = FakePage()
+    view, refresh = build_timer_view(page, db_with_sample_data)
+    # view.controls = [workplace_dropdown, earnings_card, buttons_row, transport_row, last_result_banner]
+    earnings_card_column = view.controls[1].content
+    # [status_badge, amount_text, elapsed_text, rate_text]
+    rate_text = earnings_card_column.controls[3]
+    assert rate_text.value == ""
+
+
 def test_workplace_view_builds(db_with_sample_data):
     from views.workplace_view import build_workplace_view
 
@@ -212,6 +225,39 @@ def test_calendar_view_renders_shift_plan_indicator_and_detail(db_with_sample_da
         if hasattr(c, "controls")
         for sub in c.controls
     )
+
+
+def test_calendar_view_session_delete_and_undo(db_with_sample_data):
+    """回帰テスト: 今月の出勤記録一覧の削除ボタンでDBから消え、
+    SnackBarの「元に戻す」アクションで復元されること。"""
+    from views.calendar_view import build_calendar_view
+
+    wp = db_with_sample_data.list_workplaces()[0]
+    from datetime import datetime as dt
+
+    now = dt.now()
+    session = db_with_sample_data.start_session(wp.id, start_ts=now)
+    db_with_sample_data.end_session(session.id, gross_amount=1500.0, end_ts=now)
+
+    page = FakePage()
+    view, refresh = build_calendar_view(page, db_with_sample_data)
+    refresh()
+
+    monthly_card_column = view.controls[3].content
+    sessions_list_col = monthly_card_column.controls[7]
+    assert len(sessions_list_col.controls) == 1
+    session_row = sessions_list_col.controls[0]
+    delete_button = session_row.controls[-1]
+
+    delete_button.on_click(None)
+    assert sessions_list_col.controls[0].value == "記録がありません"
+    assert db_with_sample_data.get_session(session.id) is None
+
+    undo_snack = page.overlay[-1]
+    undo_snack.on_action(None)
+    assert len(sessions_list_col.controls) == 1
+    # 削除→復元でidが変わるため、元のセッションは存在しないが同内容の新しい行が復元されている
+    assert db_with_sample_data.list_sessions(now.date(), now.date())[0].gross_amount == pytest.approx(1500.0)
 
 
 def test_format_rule_label_handles_missing_time_gracefully():

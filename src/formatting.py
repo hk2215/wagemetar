@@ -26,3 +26,11 @@ def format_hms(total_seconds: float) -> str:
     hours, remainder = divmod(total_seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
+def format_rate_triplet(hourly: float) -> tuple[str, str, str]:
+    """実効時給(円/時)から (時給, 分給, 秒給) の表示文字列を返す。
+
+    分給・秒給は端数が大きいため小数表示にする(整数丸めだと秒給が常に¥0/¥1になり無意味なため)。
+    """
+    return (format_yen(hourly), f"¥{hourly / 60:.1f}", f"¥{hourly / 3600:.2f}")

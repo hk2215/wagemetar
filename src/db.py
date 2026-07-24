@@ -432,6 +432,35 @@ class Database:
         rows = self._conn.execute(query, params).fetchall()
         return [self._row_to_session(r) for r in rows]
 
+    def delete_session(self, session_id: int) -> None:
+        """出勤記録を削除する。session_pauses は ON DELETE CASCADE で連動削除される。"""
+        self._conn.execute("DELETE FROM work_sessions WHERE id=?", (session_id,))
+        self._commit()
+
+    def insert_session(self, session: WorkSession) -> int:
+        """既存の WorkSession(pauses込み)をそのまま挿入し直す。delete_session の取消(Undo)用。"""
+        cur = self._conn.execute(
+            """INSERT INTO work_sessions
+               (workplace_id, start_ts, end_ts, status, gross_amount, transport_included)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (
+                session.workplace_id,
+                session.start_ts.isoformat(),
+                session.end_ts.isoformat() if session.end_ts else None,
+                session.status.value,
+                session.gross_amount,
+                int(session.transport_included),
+            ),
+        )
+        new_id = cur.lastrowid
+        for p in session.pauses:
+            self._conn.execute(
+                "INSERT INTO session_pauses (session_id, pause_ts, resume_ts) VALUES (?, ?, ?)",
+                (new_id, p.pause_ts.isoformat(), p.resume_ts.isoformat() if p.resume_ts else None),
+            )
+        self._commit()
+        return new_id
+
     # ------------------------------------------------------------------
     # 集計(カレンダー・ヒートマップ・壁アラート用)
     # ------------------------------------------------------------------

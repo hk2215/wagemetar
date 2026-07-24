@@ -93,6 +93,50 @@ def test_session_lifecycle_start_pause_resume_end(db):
     assert db.get_active_session() is None
 
 
+def test_delete_session_removes_it_from_list(db):
+    wp_id = db.add_workplace(Workplace(name="バイト先", base_wage=1000.0))
+    wp = db.get_workplace(wp_id)
+    start = datetime(2026, 7, 20, 10, 0)
+    end = datetime(2026, 7, 20, 12, 0)
+    session = db.start_session(wp_id, start_ts=start)
+    amount = compute_earnings(wp, wp.rules, start, end)
+    db.end_session(session.id, gross_amount=amount, end_ts=end)
+
+    assert len(db.list_sessions(date(2026, 7, 20), date(2026, 7, 20))) == 1
+    db.delete_session(session.id)
+    assert db.list_sessions(date(2026, 7, 20), date(2026, 7, 20)) == []
+    assert db.get_session(session.id) is None
+
+
+def test_insert_session_restores_deleted_record_with_pauses(db):
+    """delete_session後にUndoでinsert_sessionを使って元のセッション(pauses込み)を復元できること。"""
+    wp_id = db.add_workplace(Workplace(name="バイト先", base_wage=1000.0))
+    wp = db.get_workplace(wp_id)
+    start = datetime(2026, 7, 20, 9, 0)
+    session = db.start_session(wp_id, start_ts=start)
+    db.pause_session(session.id, at=datetime(2026, 7, 20, 9, 30))
+    db.resume_session(session.id, at=datetime(2026, 7, 20, 10, 0))
+    end = datetime(2026, 7, 20, 11, 0)
+    active = db.get_active_session()
+    amount = earnings_so_far(wp, wp.rules, active, now=end)
+    ended = db.end_session(session.id, gross_amount=amount, end_ts=end)
+
+    db.delete_session(ended.id)
+    assert db.get_session(ended.id) is None
+
+    new_id = db.insert_session(ended)
+    restored = db.get_session(new_id)
+    assert restored is not None
+    assert restored.workplace_id == wp_id
+    assert restored.start_ts == start
+    assert restored.end_ts == end
+    assert restored.status.value == "done"
+    assert restored.gross_amount == pytest.approx(ended.gross_amount)
+    assert len(restored.pauses) == 1
+    assert restored.pauses[0].pause_ts == datetime(2026, 7, 20, 9, 30)
+    assert restored.pauses[0].resume_ts == datetime(2026, 7, 20, 10, 0)
+
+
 def test_end_session_while_paused_auto_resumes(db):
     """一時停止中にエンドしても、停止時間が正しく除外されること。"""
     wp_id = db.add_workplace(Workplace(name="バイト先", base_wage=1000.0))
