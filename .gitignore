@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environments / secrets
+.env
+
+# Tool caches
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Flet
+.flet/
+build/
+storage/
+
+# scripts/fix_web_build.py がダウンロードするwheelのローカルキャッシュ
+# (再ダウンロード回避用。中身はPyPI/Pyodide CDNから取得可能なので追跡不要)
+/.web_build_wheel_cache/
+
+# Phase 0スパイク時の `flet publish` 検証で生成した一時ビルド出力(生成物)
+/dist_cdn2/
+
+# 開発時のSQLiteフォールバック保存先(FLET_APP_STORAGE_DATA未設定時)
+/data/
+
+# IDE
+.idea/
+.vscode/
+
+# macOS
+.DS_Store

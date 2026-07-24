@@ -1,0 +1,42 @@
+[project]
+name = "app"
+version = "0.1.0"
+description = "Local mobile app (Flet)"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "Flet developer", email = "you@example.com" }
+]
+dependencies = [
+    "flet>=0.86.1",
+    "httpx>=0.28.1"
+]
+
+[dependency-groups]
+dev = [
+    "flet-cli>=0.86.1",
+    "flet-desktop>=0.86.1",
+    "flet-web>=0.86.1",
+    # Integration testing with `flet test` / pytest. The `test` extra brings in
+    # pytest, pytest-asyncio and the screenshot-comparison dependencies.
+    "flet[test]>=0.86.1",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["src"]
+# test_main.py は flet.testing の flet_app フィクスチャ経由でFlutterテストホストを
+# 起動する重い統合テスト(初回はFlutter SDK自動DLが走りうる)。日常のユニットテスト
+# ループでは除外し、実行したい時だけ `flet test` または
+# `pytest tests/test_main.py --override-ini="addopts=" -p no:cacheprovider` を明示的に叩く。
+addopts = "--ignore=tests/test_main.py"
+
+[tool.flet]
+org = "com.mycompany"
+product = "app"
+company = "Flet"
+copyright = "Copyright (C) 2023-2026 by Flet"
+
+[tool.flet.app]
+path = "src"

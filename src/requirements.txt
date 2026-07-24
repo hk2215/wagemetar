@@ -1,0 +1,9 @@
+# flet build web (Pyodide/Emscripten向け) 専用。python-worker.js は app.zip を
+# 展開したこのディレクトリ直下に requirements.txt があるかチェックし、あれば
+# micropip.install() で読み込む。flet_cli はこのファイルを自動生成しないため
+# (pyproject.tomlのdependenciesはネイティブビルド時のpip installにのみ使われ、
+# Emscriptenターゲットのapp.zipには含まれない/実際には使われない)、明示的に
+# ここへ複製している。ネイティブ(デスクトップ/APK)ビルドの依存解決はpyproject.toml
+# 側が優先されるため、このファイルはWeb以外では無視される。
+flet>=0.86.1
+httpx>=0.28.1
