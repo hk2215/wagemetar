@@ -25,6 +25,30 @@ python scripts/fix_web_build.py
 `fix_web_build.py` を実行してから配布・検証すること。`--base-url wagemetar` は GitHub Pages の
 プロジェクトサイトがサブパス(`/wagemetar/`)配信になるため必須。
 
+### Windows(この開発機)でのビルド時の注意点3件(2026-07-26 確認)
+1. **`flet build web` がビルド成功メッセージ(✅絵文字)の出力でクラッシュすることがある**:
+   日本語Windowsの既定コードページ(cp932)ではrichライブラリの絵文字出力が
+   `UnicodeEncodeError`でプロセスごと落ちる(パッケージング自体は成功しているのに、その後の
+   `console.log`表示で失敗する)。`PYTHONUTF8=1 PYTHONIOENCODING=utf-8`を付けて実行すると回避できる:
+   ```
+   PYTHONUTF8=1 PYTHONIOENCODING=utf-8 flet build web -v --no-cdn --base-url wagemetar ...
+   ```
+2. **Windowsの「開発者モード」が無効だとプラグイン付きWebビルドが失敗する**: Flutterが
+   ビルド中にシンボリックリンクを作成しようとし、`Building with plugins requires symlink support.`
+   というエラーで止まる。`設定 > プライバシーとセキュリティ > 開発者向け`(または `ms-settings:developers`)
+   で「開発者モード」をオンにする必要がある(恒久設定。ローカルPCのみに影響し、ネットワーク的な
+   露出は増えない)。
+3. **`fix_web_build.py`が書き換える`index.html`はWindows上ではCRLFになりうる**: `Path.write_text()`は
+   Windowsでは既定で`\n`を`\r\n`に変換するため、gh-pagesの既存コミット(LF)と比べると全行差分に
+   見えてしまう(中身は同一・動作に影響なし)。無駄な差分を避けたい場合はコミット前にLFへ正規化する。
+
+### gh-pagesへのpushは2回目以降は軽い
+初回デプロイ時にFlutter/CanvasKit/Pyodideランタイム一式(約80MB)を丸ごとpushする必要があり不安定に
+なりやすいが、**Pythonソース側だけを変更した2回目以降の更新は`assets/app/app.zip`(アプリ本体)の
+差分だけで済み、この環境からのpushでも問題なく成功する**(2026-07-26に実績あり)。Flutter側の
+ビルド成果物(`main.dart.js`/`.wasm`等)はFlet/pubspec設定を変えない限りバイト単位で決定的に
+同一になるため、Pythonの`src/`だけを変更した通常運用ではpushの不安定さを心配しなくてよい。
+
 デプロイ(gh-pagesブランチへ):
 - `git worktree` で orphan `gh-pages` ブランチを別ディレクトリに用意し、`build/web/` の中身をコピー。
 - `.nojekyll`(Jekyll処理を無効化。`_` 始まりファイル等を素通しさせる)を置く。
